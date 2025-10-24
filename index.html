@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>🎉 Undian Doorprize</title>
+  <style>
+    body {
+      font-family: "Poppins", sans-serif;
+      background: #ffffff;
+      text-align: center;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      background: #fff;
+      padding: 25px;
+      border-radius: 15px;
+      width: 90%;
+      max-width: 800px;
+      margin: 40px auto;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+      position: relative;
+      z-index: 2;
+    }
+    input, button {
+      margin: 5px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #4b7bec;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      background-color: #3867d6;
+    }
+    .winner {
+      background: #f9f9f9;
+      font-size: 1.3em;
+      padding: 10px;
+      margin: 8px auto;
+      width: fit-content;
+      border-radius: 8px;
+      border: 2px solid #4b7bec;
+      display: inline-block;
+      margin-right: 5px;
+      animation: fadeIn 0.4s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    #pesertaGrid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      text-align: center;
+      margin-top: 15px;
+    }
+    #pesertaGrid div {
+      padding: 6px;
+      border-radius: 6px;
+      background: #f2f2f2;
+      border: 1px solid #ddd;
+    }
+    .nav-btn {
+      background: #ccc;
+      color: #333;
+      margin: 10px 5px;
+    }
+    canvas#confetti-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="confetti-canvas"></canvas>
+  <div class="container">
+    <h1>🎊 Sistem Undian Doorprize 🎊</h1>
+
+    <h2>🏆 Pemenang</h2>
+    <div id="winners"></div>
+
+    <div style="margin: 20px 0;">
+      <label>Jumlah Pemenang:</label>
+      <input type="number" id="jumlahPemenang" min="1" value="1">
+      <button onclick="mulaiUndian()">🎲 Mulai Undian</button>
+      <button id="saveBtn" style="display:none;background:#27ae60;">💾 Simpan Hasil</button>
+    </div>
+
+    <hr>
+
+    <h3>📥 Tambah Peserta</h3>
+    <p><input type="file" id="fileInput" accept=".csv"></p>
+    <p>atau tambah manual:</p>
+    <input type="text" id="nomorInput" placeholder="Masukkan nomor HP">
+    <button onclick="tambahNomor()">Tambah</button>
+
+    <h4>📋 Jumlah Peserta: <span id="jumlahPeserta">0</span></h4>
+
+    <div id="pesertaGrid"></div>
+
+    <div>
+      <button class="nav-btn" onclick="prevPage()">⬅️ Prev</button>
+      <button class="nav-btn" onclick="nextPage()">Next ➡️</button>
+    </div>
+
+    <button onclick="resetData()" style="background:#bbb;color:#000;">Reset Semua</button>
+  </div>
+
+  <script>
+    let peserta = [];
+    let pemenang = [];
+    let currentPage = 0;
+    const perPage = 25; // 5 kolom × 5 baris
+
+    function tambahNomor() {
+      const input = document.getElementById("nomorInput");
+      const nomor = input.value.trim();
+      if (nomor && !peserta.includes(nomor)) {
+        peserta.push(nomor);
+        input.value = "";
+        renderPeserta();
+      } else {
+        alert("Nomor kosong atau sudah terdaftar.");
+      }
+    }
+
+    function renderPeserta() {
+      const grid = document.getElementById("pesertaGrid");
+      const start = currentPage * perPage;
+      const end = start + perPage;
+      const tampil = peserta.slice(start, end);
+      grid.innerHTML = tampil.map(p => `<div>${p}</div>`).join("");
+      document.getElementById("jumlahPeserta").innerText = peserta.length;
+    }
+
+    function nextPage() {
+      if ((currentPage + 1) * perPage < peserta.length) {
+        currentPage++;
+        renderPeserta();
+      }
+    }
+
+    function prevPage() {
+      if (currentPage > 0) {
+        currentPage--;
+        renderPeserta();
+      }
+    }
+
+    document.getElementById("fileInput").addEventListener("change", function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const lines = e.target.result.split(/\r?\n/);
+        for (let line of lines) {
+          const nomor = line.trim();
+          if (nomor && !peserta.includes(nomor) && nomor !== "nomor_hp") {
+            peserta.push(nomor);
+          }
+        }
+        currentPage = 0;
+        renderPeserta();
+      };
+      reader.readAsText(file);
+    });
+
+    function mulaiUndian() {
+      const jumlah = parseInt(document.getElementById("jumlahPemenang").value);
+      if (peserta.length === 0) return alert("Belum ada peserta!");
+      if (jumlah < 1 || jumlah > peserta.length) return alert("Jumlah pemenang tidak valid!");
+
+      const container = document.getElementById("winners");
+      container.innerHTML = "<div class='winner' id='rolling'>Mengocok...</div>";
+      let rollingEl = document.getElementById("rolling");
+
+      // Animasi angka berganti selama 3 detik
+      let rollInterval = setInterval(() => {
+        const randomNomor = peserta[Math.floor(Math.random() * peserta.length)];
+        rollingEl.textContent = randomNomor;
+      }, 80);
+
+      setTimeout(() => {
+        clearInterval(rollInterval);
+
+        // Setelah selesai kocok, pilih pemenang
+        const tempPeserta = [...peserta];
+        pemenang = [];
+        for (let i = 0; i < jumlah; i++) {
+          const index = Math.floor(Math.random() * tempPeserta.length);
+          pemenang.push(tempPeserta.splice(index, 1)[0]);
+        }
+
+        startConfetti();
+        setTimeout(stopConfetti, 3000);
+
+        // tampilkan pemenang max 5 per baris
+        const rows = [];
+        for (let i = 0; i < pemenang.length; i += 5) {
+          const row = pemenang.slice(i, i + 5)
+            .map(w => `<div class="winner">${w}</div>`)
+            .join("");
+          rows.push(`<div>${row}</div>`);
+        }
+        container.innerHTML = rows.join("");
+        document.getElementById("saveBtn").style.display = "inline-block";
+      }, 3000);
+    }
+
+    document.getElementById("saveBtn").addEventListener("click", () => {
+      if (pemenang.length === 0) return;
+      const csvContent = "data:text/csv;charset=utf-8," + pemenang.map(p => p).join("\n");
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csvContent));
+      link.setAttribute("download", "hasil_undian.csv");
+      link.click();
+    });
+
+    function resetData() {
+      if (confirm("Yakin ingin menghapus semua data peserta?")) {
+        peserta = [];
+        pemenang = [];
+        currentPage = 0;
+        renderPeserta();
+        document.getElementById("winners").innerHTML = "";
+        document.getElementById("saveBtn").style.display = "none";
+      }
+    }
+
+    // 🎊 Konfeti
+    const confettiCanvas = document.getElementById("confetti-canvas");
+    const ctx = confettiCanvas.getContext("2d");
+    let confetti = [];
+    let animationFrameId;
+
+    function resizeCanvas() {
+      confettiCanvas.width = window.innerWidth;
+      confettiCanvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    function startConfetti() {
+      confetti = [];
+      for (let i = 0; i < 200; i++) {
+        confetti.push({
+          x: Math.random() * confettiCanvas.width,
+          y: Math.random() * confettiCanvas.height - confettiCanvas.height,
+          r: Math.random() * 6 + 4,
+          d: Math.random() * 50 + 10,
+          color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+          tilt: Math.random() * 10 - 10
+        });
+      }
+      animateConfetti();
+    }
+
+    function animateConfetti() {
+      animationFrameId = requestAnimationFrame(animateConfetti);
+      ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+      confetti.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2, false);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+      });
+      updateConfetti();
+    }
+
+    function updateConfetti() {
+      confetti.forEach(p => {
+        p.y += Math.cos(p.d) + 2;
+        p.x += Math.sin(p.d);
+        if (p.y > confettiCanvas.height) {
+          p.y = 0 - p.r;
+          p.x = Math.random() * confettiCanvas.width;
+        }
+      });
+    }
+
+    function stopConfetti() {
+      cancelAnimationFrame(animationFrameId);
+      ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    }
+  </script>
+</body>
+</html>
